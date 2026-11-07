@@ -6,9 +6,9 @@ A [Model Context Protocol](https://modelcontextprotocol.io) server that gives AI
 
 | Tool | What it does | API call |
 |---|---|---|
-| `gateway_resolve` | Resolves a website's machine-readable agent manifest and its exposed actions. | `POST /v1/gateway/resolve` |
-| `gateway_invoke` | Invokes an action a site declares in its agent manifest. | `POST /v1/gateway/invoke` |
-| `kya_status` | Looks up an agent's passport status. | `GET /v1/kya/verify` |
+| `gateway_resolve` | Resolves a website's machine-readable agent manifest and its exposed actions. | `GET /v1/gateway/manifest/{domain}` |
+| `gateway_invoke` | Invokes an action a site declares in its agent manifest, by the action's slug. | `POST /v1/gateway/invoke` |
+| `kya_status` | Looks up one of your organization's registered agents by ID. | `GET /v1/agents/{id}` |
 
 ## Configuration
 

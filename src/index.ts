@@ -3,8 +3,14 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
 
-const cliApiKey = process.argv.find((a) => a.startsWith('--api-key='))?.split('=')[1]
-const cliApiUrl = process.argv.find((a) => a.startsWith('--api-url='))?.split('=')[1]
+/** Value of a `--name=value` option. Everything after the first `=` is the value, so keys and URLs that contain `=` survive. */
+export function cliOption(argv: readonly string[], name: string): string | undefined {
+  const prefix = `--${name}=`
+  return argv.find((arg) => arg.startsWith(prefix))?.slice(prefix.length)
+}
+
+const cliApiKey = cliOption(process.argv, 'api-key')
+const cliApiUrl = cliOption(process.argv, 'api-url')
 
 const API_BASE_URL = cliApiUrl || process.env.STEALTHMARK_API_URL || 'http://localhost:3001'
 const API_KEY = cliApiKey || process.env.STEALTHMARK_API_KEY
@@ -67,16 +73,12 @@ export function createMcpServer(options: McpServerOptions = {}) {
     'gateway_resolve',
     "Resolve a website's machine-readable agent manifest and its exposed actions through the StealthMark API.",
     {
-      domain: z.string().describe("Target website domain (e.g. 'intermiami.com')"),
+      // Same 3-character minimum as the API; it also keeps the '.' and '..' path segments out of the URL.
+      domain: z.string().min(3).describe("Target website domain (e.g. 'intermiami.com')"),
     },
     async ({ domain }): Promise<ToolResult> => {
       try {
-        return textResult(
-          await callApi('/v1/gateway/resolve', {
-            method: 'POST',
-            body: JSON.stringify({ target_domain: domain }),
-          })
-        )
+        return textResult(await callApi(`/v1/gateway/manifest/${encodeURIComponent(domain)}`))
       } catch (err: unknown) {
         return errorResult('gateway_resolve', err)
       }
@@ -88,8 +90,8 @@ export function createMcpServer(options: McpServerOptions = {}) {
     'Invoke an action a site declares in its agent manifest, through the StealthMark API.',
     {
       domain: z.string().describe('Target domain hosting the action'),
-      action_id: z.string().describe('Action identifier to invoke'),
-      parameters: z.record(z.string(), z.unknown()).describe('Key-value parameters conforming to the agent manifest schema'),
+      action_id: z.string().describe("Action slug from the site's agent manifest (see gateway_resolve)"),
+      parameters: z.record(z.string(), z.unknown()).describe("Parameters matching the action's inputSchema in the agent manifest"),
     },
     async ({ domain, action_id, parameters }): Promise<ToolResult> => {
       try {
@@ -107,14 +109,13 @@ export function createMcpServer(options: McpServerOptions = {}) {
 
   server.tool(
     'kya_status',
-    "Look up an agent's passport status through the StealthMark API.",
+    "Look up one of your organization's registered agents (name, status, protocols) through the StealthMark API.",
     {
-      agent_id: z.string().optional().describe('Agent ID to look up'),
+      agent_id: z.guid().describe('ID of the agent to look up'),
     },
     async ({ agent_id }): Promise<ToolResult> => {
       try {
-        const params = agent_id ? `?agent_id=${encodeURIComponent(agent_id)}` : ''
-        return textResult(await callApi(`/v1/kya/verify${params}`))
+        return textResult(await callApi(`/v1/agents/${encodeURIComponent(agent_id)}`))
       } catch (err: unknown) {
         return errorResult('kya_status', err)
       }

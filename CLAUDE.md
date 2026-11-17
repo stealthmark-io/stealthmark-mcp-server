@@ -1,0 +1,9 @@
+# CLAUDE.md — `@stealthmark/mcp-server`
+
+Lee [`AGENTS.md`](AGENTS.md) para ver los disparadores de `zod`, `STEALTHMARK_API_KEY`, anti-SSRF en `--api-url` y contratos MCP/stdio.
+
+## Compuerta Obligatoria de Jurado (3 Jueces en Contexto Limpio)
+- Tras correr `npm run typecheck && npm test` y **antes** de cerrar o proponer actualización/`commit`/`push`/publicación ante: (1) actualizaciones/deps/pre-commit/release, (2) validación o fix de bugs (`gateway_resolve`, `gateway_invoke`, `kya_status`), (3) ciberseguridad/OPSEC (`zod`, `STEALTHMARK_API_KEY`, anti-SSRF `--api-url`, timeouts/stdio) o (4) cambios críticos en contratos MCP o SDK, invocá **3 jueces independientes** de lectura en contexto limpio (el modelo más capaz disponible: **1. Técnico/Contratos MCP/Tests**, **2. Ciberseguridad/OPSEC/Anti-SSRF**, **3. Producto/UX/Zero-Humo/Calidad**).
+- Formato: `VEREDICTO: APROBADO | APROBADO CON CORRECCIONES | NO APROBADO` (`VETO`/`CRÍTICO`/`ALTO`/`BLOQUEANTE`/`MEDIO`/`BAJO`). Todo `VETO`/`CRÍTICO`/`ALTO`/`BLOQUEANTE` obliga a corregir y **re-correr `npm run typecheck && npm test` tras la última edición**.
+- **Cierre:** Cualquier `NO APROBADO` bloquea. Un `VETO` o `CRÍTICO` vuelve siempre al juez que lo levantó para una sola re-verificación del fix; el resto la necesita solo si el fix toca arquitectura, autenticación/perímetro, aritmética crítica, contratos públicos o la superficie de seguridad. La verificación en vivo es solo sobre servicios propios en local o staging. Ningún `VEREDICTO` es el "sí": commit, push y publicación siguen necesitando el visto bueno explícito del mantenedor.
+- Excepción única: solo lectura o typos triviales sin impacto técnico, operativo, normativo ni de seguridad. Sin subagentes: `code-review-and-quality` (o `thermo-nuclear-review` + `thermo-nuclear-code-quality-review`) + `security` por separado, rotulado "revisión fallback (no jurado)" y sin línea `VEREDICTO`.

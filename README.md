@@ -9,6 +9,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io) server that gives AI
 | `gateway_resolve` | Resolves a website's machine-readable agent manifest and its exposed actions. | `GET /v1/gateway/manifest/{domain}` |
 | `gateway_invoke` | Invokes an action a site declares in its agent manifest, by the action's slug. | `POST /v1/gateway/invoke` |
 | `kya_status` | Looks up one of your organization's registered agents by ID. | `GET /v1/agents/{id}` |
+| `audit_mcp_config` | Deterministically audits an `mcp.json` configuration against 12 MCP security controls without network calls. | Local (no API call) |
 
 ## Configuration
 

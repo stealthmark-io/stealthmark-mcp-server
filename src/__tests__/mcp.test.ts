@@ -435,9 +435,98 @@ describe('helper guards', () => {
     expect(
       auditMcpConfigJson(escapedUnicodeJson).controls.find((c) => c.id === 'output_prompt_sanitization')?.status
     ).toBe('fail')
-    expect(
-      auditMcpConfigJson(escapedUnicodeJson).controls.find((c) => c.id === 'output_prompt_sanitization')?.status
-    ).toBe('fail')
+
+    // Multi-server omission masking: srv1 hardened, srv2 omits required policies -> must NOT pass globally
+    const partialMulti = auditMcpConfigJson(
+      JSON.stringify({
+        mcpServers: {
+          hardened: {
+            command: 'node',
+            args: ['dist/index.js'],
+            expectedAudience: 'https://api.stealthmark.io/mcp',
+            scopes: ['gateway:read'],
+            schemaSha256: 'a'.repeat(64),
+            hitl: true,
+            maxSessionCalls: 50,
+            sanitizeOutput: true,
+            allowedDomains: ['api.stealthmark.io'],
+            telemetry: { ecs: true },
+            localOnly: true,
+          },
+          unconfigured: {
+            command: 'node',
+            args: ['other.js'],
+            url: 'https://remote.example.test/mcp',
+          },
+        },
+      })
+    )
+    const partialById = Object.fromEntries(partialMulti.controls.map((c) => [c.id, c.status]))
+    for (const id of [
+      'oauth_pkce_audience',
+      'delegated_obo_scope',
+      'tool_schema_sha256_pin',
+      'read_write_hitl_split',
+      'session_budget_limit',
+      'output_prompt_sanitization',
+      'egress_domain_allowlist',
+      'ecs_immutable_telemetry',
+      'web_surface_asphyxiation',
+    ]) {
+      expect(partialById[id], id).toBe('warn')
+    }
+
+    // Expanded bind-all (0.0.0.0:port, --bind=0.0.0.0, [::]), forceAuthLocalhost, shell metacharacters, and expanded secret regexes
+    for (const badBindCfg of [
+      { mcpServers: { s: { command: 'node', args: ['srv.js', '--bind=0.0.0.0:8080'] } } },
+      { mcpServers: { s: { command: 'node', args: ['srv.js', '--host', '[::]:9000'] } } },
+      { mcpServers: { s: { command: 'node', args: ['srv.js', '--host', '::'] } } },
+      { mcpServers: { s: { command: 'node', args: ['srv.js', 'http://0.0.0.0:3000'] } } },
+      { mcpServers: { s: { command: 'node', args: ['srv.js', '--force-auth-localhost'] } } },
+      { mcpServers: { s: { command: 'node', args: ['srv.js'], forceAuthLocalhost: true } } },
+    ]) {
+      const r = auditMcpConfigJson(JSON.stringify(badBindCfg))
+      expect(r.controls.find((c) => c.id === 'web_surface_asphyxiation')?.status).toBe('fail')
+    }
+
+    const metacharRes = auditMcpConfigJson(
+      JSON.stringify({ mcpServers: { s: { command: 'node', args: ['srv.js', '--name=$(id)'] } } })
+    )
+    expect(metacharRes.controls.find((c) => c.id === 'stdio_isolation')?.status).toBe('fail')
+
+    // Anti-FP regression: snake_case words containing `re_` and `;charset=utf-8` headers must NOT false-positive
+    const benignCfg = auditMcpConfigJson(
+      JSON.stringify({
+        mcpServers: {
+          s: {
+            command: 'node',
+            args: [
+              'srv.js',
+              '--ignore_certificate_errors',
+              '--header=Accept: text/plain;charset=utf-8',
+            ],
+            scopes: ['require_human_approval', 'azure_resource_management'],
+            docs: 'https://docs.example.com/software_engineering_guide',
+          },
+        },
+      })
+    )
+    expect(benignCfg.controls.find((c) => c.id === 'zero_plaintext_env_secrets')?.status).toBe('pass')
+    expect(benignCfg.controls.find((c) => c.id === 'stdio_isolation')?.status).toBe('pass')
+
+    const syntheticSecrets = [
+      ['sk', 'proj', 'fixturetoken1234567890'].join('-'),
+      ['sk', 'ant', 'fixturetoken1234567890'].join('-'),
+      ['re', 'fixturetoken1234567890'].join('_'),
+      ['rk', 'live', 'fixturetoken1234'].join('_'),
+      `${Buffer.from('{"alg":"HS256","typ":"JWT"}').toString('base64url')}.${Buffer.from('{"sub":"1234567890"}').toString('base64url')}.signature123456`,
+    ]
+    for (const secret of syntheticSecrets) {
+      const secRes = auditMcpConfigJson(
+        JSON.stringify({ mcpServers: { s: { command: 'node', args: ['srv.js'], env: { TOKEN: secret } } } })
+      )
+      expect(secRes.controls.find((c) => c.id === 'zero_plaintext_env_secrets')?.status).toBe('fail')
+    }
   })
 })
 
